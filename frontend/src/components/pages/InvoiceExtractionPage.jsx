@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { UploadZone } from '../extraction/UploadZone.jsx';
-import { FormatSelector } from '../extraction/FormatSelector.jsx';
+import { RetailerSelector } from '../extraction/RetailerSelector.jsx';
 import { BatchResultsPanel } from '../extraction/BatchResultsPanel.jsx';
 import { ProcessActionBar } from '../extraction/ProcessActionBar.jsx';
 import { PageStep } from '../ui/PageStep.jsx';
@@ -8,7 +8,7 @@ import { MaterialIcon } from '../ui/MaterialIcon.jsx';
 import { useBatchExtraction } from '../../hooks/useBatchExtraction.js';
 
 const WORKFLOW_STEPS = [
-  { n: 1, label: 'Formato', icon: 'calendar_today' },
+  { n: 1, label: 'Comercializador', icon: 'business' },
   { n: 2, label: 'ZIP', icon: 'folder_zip' },
   { n: 3, label: 'Procesar', icon: 'auto_awesome' },
   { n: 4, label: 'Excel', icon: 'table_chart' },
@@ -55,9 +55,10 @@ function WorkflowStrip() {
 
 export function InvoiceExtractionPage() {
   const {
+    retailerId,
+    retailerOptions,
+    selectedRetailer,
     zipFile,
-    invoiceFormat,
-    formatOptions,
     rejectReason,
     apiError,
     isProcessing,
@@ -67,9 +68,9 @@ export function InvoiceExtractionPage() {
     autoDownload,
     canProcess,
     processBlockReason,
+    onRetailerChange,
     onPickFile,
     onClearFile,
-    onFormatChange,
     onAutoDownloadChange,
     startProcessing,
     cancelProcessing,
@@ -88,17 +89,18 @@ export function InvoiceExtractionPage() {
   }, [isJobActive]);
 
   const readyHint =
-    zipFile && invoiceFormat
-      ? `Lote configurado (${invoiceFormat}). El tiempo depende del número de PDFs en el ZIP.`
-      : !zipFile
-        ? 'Suba un archivo ZIP con las facturas en PDF.'
-        : 'Seleccione el año o formato de las facturas.';
+    zipFile && selectedRetailer
+      ? `Lote ${selectedRetailer.label}: el año de cada factura se detecta automáticamente.`
+      : !retailerId
+        ? 'Seleccione Air-e o Afinia según el comercializador de las facturas.'
+        : 'Suba un archivo ZIP con las facturas en PDF.';
 
   return (
     <main className="app-main-bg custom-scrollbar flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-6 px-6 py-6 lg:gap-7 lg:px-8 lg:py-8">
         <p className="text-sm text-on-surface-variant sm:hidden">
-          Cargue un lote ZIP, elija el formato y obtenga un consolidado Excel con IA.
+          Elija comercializador, cargue un ZIP y obtenga el consolidado Excel con detección automática
+          de formato.
         </p>
 
         <WorkflowStrip />
@@ -106,13 +108,13 @@ export function InvoiceExtractionPage() {
 
         <PageStep
           step="1"
-          title="Formato de factura"
-          description="Indique la versión o plantilla del lote. El motor de extracción aplica reglas distintas según el año."
+          title="Comercializador"
+          description="Indique si las facturas del lote corresponden a Air-e o Afinia. El motor aplicará las reglas y plantillas correctas."
         >
-          <FormatSelector
-            options={formatOptions}
-            value={invoiceFormat}
-            onChange={onFormatChange}
+          <RetailerSelector
+            options={retailerOptions}
+            value={retailerId}
+            onChange={onRetailerChange}
             disabled={isProcessing}
           />
         </PageStep>
@@ -120,7 +122,11 @@ export function InvoiceExtractionPage() {
         <PageStep
           step="2"
           title="Cargar lote ZIP"
-          description="Un solo archivo comprimido con todas las facturas PDF que desea procesar."
+          description={
+            retailerId === 'afinia'
+              ? 'ZIP con PDFs Afinia. 2024 = 1 hoja; 2025/2026 = 2 hojas. Puede mezclar años.'
+              : 'ZIP con PDFs Air-e (2023, 2024 o 2025/2026). Puede mezclar años en el mismo lote.'
+          }
         >
           <UploadZone
             file={zipFile}
@@ -146,7 +152,7 @@ export function InvoiceExtractionPage() {
         <PageStep
           step="3"
           title="Resultados"
-          description="Siga el progreso del lote y descargue el Excel consolidado cuando esté listo."
+          description="Progreso, clasificación por factura y descarga del Excel consolidado."
           className="scroll-mt-6"
         >
           <div ref={resultsRef}>

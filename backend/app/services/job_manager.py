@@ -8,7 +8,7 @@ from pathlib import Path
 from app.config import Settings, get_settings
 from app.core.exceptions import JobCancelledError
 from app.core.archive_validation import load_pdf_entries
-from app.domain.enums import InvoiceFormat
+from app.domain.enums import EnergyRetailer, InvoiceFormat
 from app.pipelines.batch_processor import BatchProcessor
 from app.services.storage_cleanup import cleanup_stale_files
 
@@ -26,6 +26,7 @@ class JobStatus(str, Enum):
 @dataclass
 class ExtractionJob:
     job_id: str
+    retailer: EnergyRetailer
     invoice_format: InvoiceFormat
     zip_path: Path
     pdf_entry_names: list[str]
@@ -47,7 +48,7 @@ class JobManager:
         self._jobs: dict[str, ExtractionJob] = {}
         self._lock = threading.Lock()
 
-    def create_job(self, invoice_format: InvoiceFormat, zip_bytes: bytes) -> ExtractionJob:
+    def create_job(self, retailer: EnergyRetailer, zip_bytes: bytes) -> ExtractionJob:
         """Responde al instante; la validación del ZIP ocurre en el hilo de fondo."""
         job_id = str(uuid.uuid4())
         jobs_dir = self.settings.resolve_jobs_dir()
@@ -56,7 +57,8 @@ class JobManager:
 
         job = ExtractionJob(
             job_id=job_id,
-            invoice_format=invoice_format,
+            retailer=retailer,
+            invoice_format=InvoiceFormat.AUTO,
             zip_path=zip_path,
             pdf_entry_names=[],
             total=0,
@@ -125,7 +127,7 @@ class JobManager:
                 locked_job.excel_path = excel_path
                 locked_job.current_file = None
 
-            processor = BatchProcessor(job.invoice_format, self.settings)
+            processor = BatchProcessor(job.retailer, self.settings)
 
             def on_progress(
                 processed: int,
@@ -171,6 +173,8 @@ class JobManager:
                         "success": outcome.success,
                         "nic": outcome.nic,
                         "error": outcome.error,
+                        "format_detected": outcome.format_detected,
+                        "format_label": outcome.format_label,
                     }
                     for outcome in result.outcomes
                 ]

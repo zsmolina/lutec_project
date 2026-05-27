@@ -6,7 +6,7 @@ export const APP_MODULES = {
     enabled: true,
     headerTitle: 'Extracción de facturas',
     headerSubtitle:
-      'Cargue un lote ZIP, elija el formato y obtenga un consolidado Excel con IA.',
+      'Elija Air-e o Afinia, cargue un ZIP y obtenga el consolidado Excel con detección automática de año.',
   },
   formap: {
     id: 'formap',

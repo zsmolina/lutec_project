@@ -6,20 +6,20 @@ from app.api.schemas.extractions import (
     BatchJobStatusResponse,
     InvoiceOutcomeResponse,
 )
-from app.domain.enums import InvoiceFormat
+from app.domain.enums import EnergyRetailer, InvoiceFormat
 from app.services.job_manager import ExtractionJob, JobStatus, get_job_manager
 from app.services.output_filenames import invoice_consolidated_filename
 
 router = APIRouter(prefix="/extractions", tags=["extractions"])
 
 
-def _parse_format(format_value: str) -> InvoiceFormat:
+def _parse_retailer(retailer_value: str) -> EnergyRetailer:
     try:
-        return InvoiceFormat(format_value)
+        return EnergyRetailer(retailer_value)
     except ValueError as exc:
         raise HTTPException(
             status_code=422,
-            detail=f"Formato inválido. Use: {', '.join(f.value for f in InvoiceFormat)}",
+            detail=f"Comercializador inválido. Use: {', '.join(r.value for r in EnergyRetailer)}",
         ) from exc
 
 
@@ -33,6 +33,8 @@ def _job_to_status(job: ExtractionJob) -> BatchJobStatusResponse:
     return BatchJobStatusResponse(
         job_id=job.job_id,
         status=job.status.value,
+        retailer=job.retailer.value,
+        retailer_label=job.retailer.label,
         format=job.invoice_format.value,
         format_label=job.invoice_format.label,
         total=job.total,
@@ -48,10 +50,10 @@ def _job_to_status(job: ExtractionJob) -> BatchJobStatusResponse:
 
 @router.post("/batch", response_model=BatchJobCreatedResponse, status_code=202)
 async def create_batch_extraction(
-    format: str = Form(...),
+    retailer: str = Form(...),
     file: UploadFile = File(...),
 ):
-    invoice_format = _parse_format(format)
+    energy_retailer = _parse_retailer(retailer)
 
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=422, detail="Se requiere un archivo .zip")
@@ -60,10 +62,12 @@ async def create_batch_extraction(
     if not zip_bytes:
         raise HTTPException(status_code=422, detail="El archivo ZIP está vacío")
 
-    job = get_job_manager().create_job(invoice_format, zip_bytes)
+    job = get_job_manager().create_job(energy_retailer, zip_bytes)
     return BatchJobCreatedResponse(
         job_id=job.job_id,
         status=job.status.value,
+        retailer=job.retailer.value,
+        retailer_label=job.retailer.label,
         format=job.invoice_format.value,
         format_label=job.invoice_format.label,
         total=job.total,
@@ -106,7 +110,7 @@ def download_batch_excel(job_id: str):
             detail="No se generó Excel porque ninguna factura se procesó correctamente",
         )
 
-    download_name = invoice_consolidated_filename(job.invoice_format.value)
+    download_name = invoice_consolidated_filename(job.retailer.value, job.invoice_format.value)
     return FileResponse(
         path=job.excel_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

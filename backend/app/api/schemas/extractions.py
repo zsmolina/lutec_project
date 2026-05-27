@@ -6,11 +6,15 @@ class InvoiceOutcomeResponse(BaseModel):
     success: bool
     nic: str | None = None
     error: str | None = None
+    format_detected: str | None = None
+    format_label: str | None = None
 
 
 class BatchJobCreatedResponse(BaseModel):
     job_id: str
     status: str
+    retailer: str
+    retailer_label: str
     format: str
     format_label: str
     total: int = 0
@@ -19,6 +23,8 @@ class BatchJobCreatedResponse(BaseModel):
 class BatchJobStatusResponse(BaseModel):
     job_id: str
     status: str
+    retailer: str
+    retailer_label: str
     format: str
     format_label: str
     total: int = 0

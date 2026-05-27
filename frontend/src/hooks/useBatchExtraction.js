@@ -3,7 +3,6 @@ import {
   cancelBatchJob,
   downloadBatchExcel,
   fetchJobStatus,
-  fetchSupportedFormats,
   startBatchExtraction,
 } from '../api/extractions.js';
 import { useBackendHealth } from '../context/BackendHealthContext.jsx';
@@ -12,7 +11,7 @@ import {
   POLL_INTERVAL_PROCESSING_MS,
   POLL_INTERVAL_QUEUED_MS,
 } from '../config/api.js';
-import { DEFAULT_INVOICE_FORMATS } from '../constants/invoiceFormats.js';
+import { DEFAULT_RETAILER_ID, RETAILERS } from '../constants/retailers.js';
 import { pickZipFromFileList, validateZipFileSize } from '../utils/files.js';
 
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
@@ -26,9 +25,8 @@ function readAutoDownloadPreference() {
 }
 
 export function useBatchExtraction() {
+  const [retailerId, setRetailerId] = useState(DEFAULT_RETAILER_ID);
   const [zipFile, setZipFile] = useState(null);
-  const [invoiceFormat, setInvoiceFormat] = useState('');
-  const [formatOptions, setFormatOptions] = useState(DEFAULT_INVOICE_FORMATS);
   const [rejectReason, setRejectReason] = useState(null);
   const [apiError, setApiError] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -39,22 +37,22 @@ export function useBatchExtraction() {
   const [autoDownload, setAutoDownload] = useState(readAutoDownloadPreference);
   const pollRunIdRef = useRef(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchSupportedFormats()
-      .then((formats) => {
-        if (!cancelled && formats.length > 0) setFormatOptions(formats);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const retailerOptions = RETAILERS;
 
   const resetErrors = useCallback(() => {
     setRejectReason(null);
     setApiError(null);
   }, []);
+
+  const onRetailerChange = useCallback(
+    (id) => {
+      setRetailerId(id);
+      setApiError(null);
+      setJobStatus(null);
+      setActiveJobId(null);
+    },
+    [],
+  );
 
   const onPickFile = useCallback(
     (fileList) => {
@@ -85,11 +83,6 @@ export function useBatchExtraction() {
     resetErrors();
   }, [resetErrors]);
 
-  const onFormatChange = useCallback((formatId) => {
-    setInvoiceFormat(formatId);
-    setApiError(null);
-  }, []);
-
   const onAutoDownloadChange = useCallback((enabled) => {
     setAutoDownload(enabled);
     localStorage.setItem(AUTO_DOWNLOAD_STORAGE_KEY, enabled ? 'true' : 'false');
@@ -98,7 +91,11 @@ export function useBatchExtraction() {
   const downloadExcel = useCallback(async () => {
     if (!jobStatus?.job_id || !jobStatus.download_ready) return;
     try {
-      await downloadBatchExcel(jobStatus.job_id, jobStatus.format);
+      await downloadBatchExcel(
+        jobStatus.job_id,
+        jobStatus.retailer,
+        jobStatus.format,
+      );
     } catch (err) {
       setApiError(err.message ?? 'No se pudo descargar el Excel.');
     }
@@ -138,7 +135,7 @@ export function useBatchExtraction() {
             }
             if (status.download_ready && autoDownload) {
               try {
-                await downloadBatchExcel(activeJobId, status.format);
+                await downloadBatchExcel(activeJobId, status.retailer, status.format);
               } catch (err) {
                 setApiError(err.message ?? 'No se pudo descargar el Excel.');
               }
@@ -169,7 +166,7 @@ export function useBatchExtraction() {
   }, [activeJobId, isProcessing, autoDownload]);
 
   const startProcessing = useCallback(async () => {
-    if (!zipFile || !invoiceFormat || isProcessing) return;
+    if (!zipFile || !retailerId || isProcessing) return;
     if (health && !health.openai_configured) {
       setApiError('OpenAI no está configurado en el servidor. Revise backend/.env');
       return;
@@ -188,7 +185,7 @@ export function useBatchExtraction() {
     setActiveJobId(null);
 
     try {
-      const created = await startBatchExtraction(zipFile, invoiceFormat);
+      const created = await startBatchExtraction(zipFile, retailerId);
       setIsUploading(false);
       setJobStatus(created);
       setActiveJobId(created.job_id);
@@ -202,7 +199,7 @@ export function useBatchExtraction() {
           'No se pudo iniciar el procesamiento. Verifique que el backend esté en ejecución.',
       );
     }
-  }, [zipFile, invoiceFormat, isProcessing, health]);
+  }, [zipFile, retailerId, isProcessing, health]);
 
   const cancelProcessing = useCallback(async () => {
     const jobId = activeJobId ?? jobStatus?.job_id;
@@ -221,10 +218,12 @@ export function useBatchExtraction() {
     }
   }, [activeJobId, jobStatus]);
 
+  const selectedRetailer = retailerOptions.find((r) => r.id === retailerId);
+
   const processBlockReason = (() => {
     if (isProcessing) return null;
+    if (!retailerId) return 'Seleccione el comercializador de las facturas.';
     if (!zipFile) return 'Suba un archivo ZIP con las facturas en PDF.';
-    if (!invoiceFormat) return 'Seleccione el formato de factura.';
     if (health?.status === 'unreachable') {
       return 'No se puede contactar el backend. Ejecute el servidor (puerto 8000) y recargue la página.';
     }
@@ -234,12 +233,15 @@ export function useBatchExtraction() {
     return null;
   })();
 
-  const canProcess = Boolean(zipFile && invoiceFormat && !isProcessing && !processBlockReason);
+  const canProcess = Boolean(
+    retailerId && zipFile && !isProcessing && !processBlockReason,
+  );
 
   return {
+    retailerId,
+    retailerOptions,
+    selectedRetailer,
     zipFile,
-    invoiceFormat,
-    formatOptions,
     rejectReason,
     apiError,
     isProcessing,
@@ -249,9 +251,9 @@ export function useBatchExtraction() {
     autoDownload,
     canProcess,
     processBlockReason,
+    onRetailerChange,
     onPickFile,
     onClearFile,
-    onFormatChange,
     onAutoDownloadChange,
     startProcessing,
     cancelProcessing,

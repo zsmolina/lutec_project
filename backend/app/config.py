@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     openai_api_key: SecretStr | None = Field(default=None)
     openai_model: str = "gpt-4o"
+    openai_classifier_model: str = "gpt-4o-mini"
     openai_temperature: float = 0.0
 
     max_zip_size_mb: int = 100

@@ -64,12 +64,18 @@ npm run dev
 | GET | `/api/v1/health` | Estado del servicio y límites |
 | GET | `/api/v1/formats` | Formatos de factura soportados |
 | POST | `/api/v1/formap/consolidate` | Excel Formap → informe unificado (.xlsx) |
-| POST | `/api/v1/extractions/batch` | Inicia lote (ZIP + formato) |
+| GET | `/api/v1/retailers` | Comercializadores y formatos soportados |
+| POST | `/api/v1/extractions/batch` | Inicia lote (`retailer` + ZIP; formato auto por factura) |
 | GET | `/api/v1/extractions/jobs/{id}` | Estado del job |
 | DELETE | `/api/v1/extractions/jobs/{id}` | Cancelar job |
 | GET | `/api/v1/extractions/jobs/{id}/download` | Descargar Excel |
 
-Formatos: `2023`, `2024`, `2025_2026`
+Comercializadores: **Air-e** (`aire`) y **Afinia** (`afinia`). El usuario elige comercializador; el año se detecta automáticamente por factura.
+
+| Comercializador | Formatos (auto) |
+|-----------------|-----------------|
+| Air-e | 2023, 2024, 2025_2026 |
+| Afinia | 2024 (1 hoja), 2025_2026 (2 hojas PDF) |
 
 ## Formato Formap (CLI)
 
@@ -86,7 +92,8 @@ Desde la raíz también puede usar `consolidar_bloques_estilizados.py` (delega a
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python run_batch.py --format 2023 --zip "C:\ruta\facturas.zip" --output storage\out\salida.xlsx
+python run_batch.py --retailer aire --zip "C:\ruta\facturas.zip" --output storage\out\salida.xlsx
+python run_batch.py --retailer afinia --zip "C:\ruta\afinia.zip" --output storage\out\afinia.xlsx
 ```
 
 ## Variables de entorno
@@ -96,7 +103,8 @@ python run_batch.py --format 2023 --zip "C:\ruta\facturas.zip" --output storage\
 | Variable | Descripción |
 |----------|-------------|
 | `OPENAI_API_KEY` | Clave OpenAI (obligatoria) |
-| `OPENAI_MODEL` | Modelo (default `gpt-4o`) |
+| `OPENAI_MODEL` | Modelo de extracción (default `gpt-4o`) |
+| `OPENAI_CLASSIFIER_MODEL` | Modelo de clasificación de año (default `gpt-4o-mini`) |
 | `MAX_ZIP_SIZE_MB` | Tamaño máximo del ZIP (default 100) |
 | `MAX_FORMAP_EXCEL_MB` | Tamaño máximo Excel Formap (default 50) |
 | `MAX_PDF_COUNT` | PDFs máximos por ZIP (default 500) |
@@ -121,6 +129,47 @@ python run_batch.py --format 2023 --zip "C:\ruta\facturas.zip" --output storage\
 ```powershell
 cd frontend
 npm run build
+```
+
+## Docker
+
+Requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/) (o Docker Engine + Compose v2).
+
+1. Configure el backend (si aún no lo hizo):
+
+```powershell
+copy backend\.env.example backend\.env
+# Editar backend\.env y poner OPENAI_API_KEY real
+```
+
+2. Levantar la aplicación:
+
+```powershell
+docker compose up --build
+```
+
+| Servicio | URL |
+|----------|-----|
+| Interfaz (nginx + proxy `/api`) | http://localhost:8080 |
+| API directa (opcional) | http://localhost:8000/docs |
+
+El frontend en Docker usa nginx: las peticiones a `/api` se reenvían al contenedor `backend`. No hace falta `VITE_API_BASE_URL` en la imagen.
+
+Los temporales de jobs se guardan en el volumen `lutec-storage` (`/app/storage` en el backend).
+
+Comandos útiles:
+
+```powershell
+docker compose up -d --build   # en segundo plano
+docker compose logs -f backend
+docker compose down
+docker compose down -v         # elimina también el volumen de storage
+```
+
+Solo backend (sin interfaz):
+
+```powershell
+docker compose up --build backend
 ```
 
 ## CI

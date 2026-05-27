@@ -3,7 +3,8 @@ from fastapi import APIRouter
 from app.api.v1.extractions import router as extractions_router
 from app.api.v1.formap import router as formap_router
 from app.config import get_settings
-from app.services.extraction.registry import list_supported_formats
+from app.domain.enums import EnergyRetailer
+from app.services.extraction.registry import list_supported_formats, list_supported_retailers
 from app.services.job_manager import get_job_manager
 
 api_router = APIRouter(prefix="/v1")
@@ -26,6 +27,17 @@ def health_check():
     }
 
 
+@api_router.get("/retailers")
+def supported_retailers():
+    return {"retailers": list_supported_retailers()}
+
+
 @api_router.get("/formats")
-def supported_formats():
-    return {"formats": list_supported_formats()}
+def supported_formats(retailer: str | None = None):
+    if retailer is None:
+        return {"formats": list_supported_formats()}
+    try:
+        r = EnergyRetailer(retailer)
+    except ValueError:
+        return {"formats": []}
+    return {"formats": list_supported_formats(r)}

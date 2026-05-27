@@ -1,14 +1,14 @@
 import { MaterialIcon } from '../ui/MaterialIcon.jsx';
 
-export function FormatSelector({ options, value, onChange, disabled }) {
+export function RetailerSelector({ options, value, onChange, disabled }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2">
       {options.map((option) => {
         const selected = value === option.id;
         return (
           <label
             key={option.id}
-            className={`relative flex cursor-pointer flex-col gap-4 rounded-2xl border-2 p-5 transition-colors duration-200 ${
+            className={`relative flex cursor-pointer flex-col gap-3 rounded-2xl border-2 p-5 transition-colors duration-200 ${
               selected
                 ? 'border-ises-green bg-ises-green/[0.08]'
                 : 'border-gray-100 bg-white hover:border-ises-green/40 hover:bg-canvas-muted/50'
@@ -16,7 +16,7 @@ export function FormatSelector({ options, value, onChange, disabled }) {
           >
             <input
               type="radio"
-              name="invoice-format"
+              name="energy-retailer"
               value={option.id}
               checked={selected}
               disabled={disabled}
@@ -31,7 +31,7 @@ export function FormatSelector({ options, value, onChange, disabled }) {
                     : 'bg-gray-100 text-on-surface-variant'
                 }`}
               >
-                <MaterialIcon name="calendar_today" className="text-[24px]" />
+                <MaterialIcon name={option.icon} className="text-[24px]" />
               </span>
               {selected && (
                 <MaterialIcon name="check_circle" className="text-[20px] text-ises-green" />
@@ -39,8 +39,8 @@ export function FormatSelector({ options, value, onChange, disabled }) {
             </div>
             <div>
               <span className="block text-sm font-bold text-on-surface">{option.label}</span>
-              <span className="mt-1 block text-xs text-on-surface-variant">
-                Plantilla {option.id}
+              <span className="mt-1 block text-xs leading-relaxed text-on-surface-variant">
+                {option.description}
               </span>
             </div>
           </label>

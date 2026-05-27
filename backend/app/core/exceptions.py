@@ -20,3 +20,7 @@ class JobCancelledError(LutecError):
 
 class FormapConsolidationError(LutecError):
     """Error al consolidar un libro Excel Formap."""
+
+
+class FormatDetectionError(LutecError):
+    """No se pudo determinar el formato/año de la factura."""

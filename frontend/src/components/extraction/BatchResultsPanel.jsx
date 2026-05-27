@@ -1,7 +1,8 @@
 import { Button } from '../ui/Button.jsx';
 import { MaterialIcon } from '../ui/MaterialIcon.jsx';
+import { formatSummaryHeadline, summarizeDetectedFormats } from '../../utils/formatSummary.js';
 
-function StatCard({ label, value, tone = 'default' }) {
+function StatCard({ label, value, tone = 'default', compact }) {
   const toneClass = {
     default: 'text-on-surface',
     success: 'text-green-600',
@@ -12,7 +13,86 @@ function StatCard({ label, value, tone = 'default' }) {
   return (
     <div className="soft-card px-5 py-4">
       <p className="text-xs font-medium text-on-surface-variant">{label}</p>
-      <p className={`mt-2 text-2xl font-bold tabular-nums ${toneClass}`}>{value}</p>
+      <p
+        className={`mt-2 font-bold tabular-nums ${toneClass} ${
+          compact ? 'text-base leading-snug' : 'text-2xl'
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function FormatSummaryCard({ outcomes }) {
+  const rows = summarizeDetectedFormats(outcomes);
+  const headline = formatSummaryHeadline(outcomes);
+
+  if (!headline) {
+    return <StatCard label="Formatos detectados" value="—" tone="muted" />;
+  }
+
+  if (rows.length === 1) {
+    return <StatCard label="Formato del lote" value={headline} tone="muted" compact />;
+  }
+
+  return (
+    <div className="soft-card px-5 py-4">
+      <p className="text-xs font-medium text-on-surface-variant">Formatos detectados</p>
+      <p className="mt-2 text-base font-bold leading-snug text-on-surface">{headline}</p>
+      <p className="mt-1 text-xs text-on-surface-variant">Lote mixto — un formato por factura</p>
+    </div>
+  );
+}
+
+function ClassificationTable({ outcomes }) {
+  const sorted = [...(outcomes ?? [])].sort((a, b) =>
+    a.filename.localeCompare(b.filename, undefined, { sensitivity: 'base' }),
+  );
+
+  if (sorted.length === 0) return null;
+
+  return (
+    <div className="soft-card overflow-hidden p-0">
+      <div className="border-b border-gray-100 px-4 py-3">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+          Clasificación por factura
+        </h4>
+        <p className="mt-1 text-xs text-on-surface-variant">
+          Año detectado según la fecha de emisión de cada PDF antes de la extracción.
+        </p>
+      </div>
+      <ul className="custom-scrollbar max-h-64 divide-y divide-gray-100 overflow-y-auto">
+        {sorted.map((item) => (
+          <li
+            key={item.filename}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm sm:flex-nowrap"
+          >
+            <span
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                item.success ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+              }`}
+              aria-hidden
+            >
+              <MaterialIcon
+                name={item.success ? 'check' : 'close'}
+                className="text-[18px]"
+              />
+            </span>
+            <span className="min-w-0 flex-1 truncate font-medium text-on-surface" title={item.filename}>
+              {item.filename}
+            </span>
+            <span className="shrink-0 rounded-full bg-canvas-muted px-2.5 py-0.5 text-xs font-semibold text-on-surface">
+              {item.format_label ?? item.format_detected ?? 'Sin clasificar'}
+            </span>
+            {item.success && item.nic && (
+              <span className="w-full text-xs text-on-surface-variant sm:w-auto sm:text-right">
+                NIC {item.nic}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -36,7 +116,8 @@ export function BatchResultsPanel({
   const progressPct =
     jobStatus?.total > 0 ? Math.round((jobStatus.processed / jobStatus.total) * 100) : 0;
   const hasCountableProgress = (jobStatus?.total ?? 0) > 0;
-  const failures = jobStatus?.outcomes?.filter((item) => !item.success) ?? [];
+  const outcomes = jobStatus?.outcomes ?? [];
+  const failures = outcomes.filter((item) => !item.success);
 
   const currentFileLabel = isUploading
     ? 'Enviando lote al servidor…'
@@ -133,6 +214,7 @@ export function BatchResultsPanel({
           <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
             <MaterialIcon name="check_circle" className="text-2xl text-emerald-600" />
             <p className="text-sm font-semibold text-emerald-900">
+              {jobStatus.retailer_label ? `${jobStatus.retailer_label} — ` : ''}
               Lote finalizado — {jobStatus.succeeded} de {jobStatus.total} facturas procesadas
               correctamente
             </p>
@@ -146,8 +228,10 @@ export function BatchResultsPanel({
               value={jobStatus.failed}
               tone={jobStatus.failed ? 'error' : 'muted'}
             />
-            <StatCard label="Formato" value={jobStatus.format_label} tone="muted" />
+            <FormatSummaryCard outcomes={outcomes} />
           </div>
+
+          {outcomes.length > 0 && <ClassificationTable outcomes={outcomes} />}
 
           {jobStatus.succeeded === 0 && (
             <div
@@ -170,6 +254,11 @@ export function BatchResultsPanel({
                     className="rounded-xl border border-gray-100 bg-canvas-muted px-3 py-2.5 text-sm"
                   >
                     <p className="font-medium text-on-surface">{item.filename}</p>
+                    {item.format_label && (
+                      <p className="mt-0.5 text-xs text-on-surface-variant">
+                        Clasificado como: {item.format_label}
+                      </p>
+                    )}
                     {item.error && (
                       <p className="mt-1 text-xs leading-relaxed text-red-700">{item.error}</p>
                     )}

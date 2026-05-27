@@ -11,6 +11,9 @@ export function ProcessActionBar({
   onCancel,
   showCancel,
 }) {
+  const shouldShowBlockReason =
+    Boolean(processBlockReason) && processBlockReason !== readyHint;
+
   return (
     <div className="soft-card p-6 lg:p-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -19,7 +22,7 @@ export function ProcessActionBar({
             Listo para procesar
           </p>
           <p className="text-sm leading-relaxed text-on-surface-variant">{readyHint}</p>
-          {processBlockReason && (
+          {shouldShowBlockReason && (
             <p className="text-sm font-medium text-amber-800">{processBlockReason}</p>
           )}
           <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-on-surface-variant">
